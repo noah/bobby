@@ -4,39 +4,101 @@
 <script type='text/javascript' charset="utf-8">
 $(function() {
 
+    var board = ChessBoard('board', {
+        'position'      : 'start',
+        'pieceTheme'    : '/static/img/chesspieces/wikipedia/{piece}.png'
+    });
+
+    ///////////////////////////////
+
+    var enable_send = function() {
+        $('button#send').removeClass('btn-danger');
+        $('button#send').addClass('btn-success');
+    };
+    var disable_send = function() {
+        $('button#send').removeClass('btn-success');
+        $('button#send').addClass('btn-danger');
+    };
+
+
+    ///////////////////////////////
+
+
     var socket = io.connect('http://' + document.domain + ':' + location.port);
-    socket.on('connect', function(m) {
+    socket.on('connect', function(m) { // socket is connected
         socket.emit('connected',{});
     });
-    socket.on('message', function(m) {
+    socket.on('disconnect', function(m) { // socket is connected
+        disable_send();
+    });
+    socket.on('message', function(m) { // message from socket
         $('div#fics pre').prepend(m.data).fadeIn();
     });
-    socket.on('exception', function(m) {
+    socket.on('exception', function(m) { // exception from socket
         alert('exception, disconnecting: ' + m.data);
         socket.disconnect();
     });
+    socket.on('ficsup', function(m) { // logged in to fics
+        $(':disabled').each(function(i,el) {
+            $(el).attr('disabled', false);
+        });
+        enable_send();
+    });
+    socket.on('fen', function(m) {
+        board.position(m.data);
+        board.orientation(m.orientation);
+        console.log(m.data);
+        console.log(m.orientation);
+    });
+
+    ///////////////////////////////
 
     $('form').submit(function(e){
         e.preventDefault();
         socket.emit('command', {data: $(this).find('input').val()});
     });
 
-    var board = ChessBoard('board', {
-        'position'      : 'start',
-        'pieceTheme'    : '/static/img/chesspieces/wikipedia/{piece}.png'
-    });
 });
 
 </script>
 
-<form action='' method=POST role=post>
-    <input type=text name=send id=send/><button type=submit>Send</button>
-</form>
-<div id=fics style='height:100px;margin-bottom:100px'>
-    <pre></pre>
+<div class='container-fluid'>
+    <div class='row'>
+        <div class='col-xs-6'>
+            <strong>Bobby</strong>
+        </div>
+        <div class='col-xs-6'>
+            No game.
+        </div>
+    </div>
+    <div class='row'><!-- TELNET WINDOW -->
+        <div class='col-xs-6'>
+            <div id=fics>
+                <pre style='height:90vh; overflow-y:auto'></pre>
+            </div>
+        </div>
+        <div class='col-xs-6'><!-- BOARD WINDOW -->
+            <div id=fics>
+                <div id='board' style='width: 400px'></div>
+            </div>
+        </div>
+    </div>
+    <div class='row'>
+        <div class='col-xs-6'>
+            <div class='row'>
+            <form class='form-inline' action='' method=POST role=post>
+                <div class='col-xs-9'>
+                    <input style='width:100%' type=text name=send id=send placeholder='command' autofocus/>
+                </div>
+                <div class='col-xs-3'>
+                    <button id='send' class='btn btn-danger' type=submit disabled>Send</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
-<div id='board' style='width: 400px'></div>
+
 
 {% endblock %}
 {% block footer %}
