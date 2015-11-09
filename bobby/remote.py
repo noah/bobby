@@ -1,5 +1,4 @@
 import telnetlib
-from re import sub, split
 from time import sleep
 from traceback import format_exc
 from Queue import Empty
@@ -13,46 +12,9 @@ EMIT                    = curry_emit(sio.emit)
 TN                      = None
 CONFIGURED              = False
 TIMEOUT                 = 3
-PRELIMINARY_COMMANDS    = """\
-set seek 0
-set bell off
-set style 12
-iset nowrap 1
-iset ms 1
-iset gameinfo 1
--channel 53
-set provshow 1
-set interface 'BOBBY (http://github.com/noah/bobby)'\
-""".split('\n')
 
-def is_style12(s):
-    return s[:4] == '<12>'
-
-def parse_style12(s):
-    keys = "s12 row1 row2 row3 row4 row5 row6 row7 row8 turn_color\
-        double_push_file white_castle_short white_castle_long\
-        black_castle_short black_castle_long moves_since_irreversible\
-        game_number white_name black_name my_relation initial_time_secs\
-        increment_time_secs white_strength black_strength white_time_remain\
-        black_time_remain next_move_number coordinate_notation\
-        previous_move_time pretty_notation_previous flip_field"
-    return dict(zip(keys.split(), s.split(' ')))
-
-def fen_from_style12(s):
-    #
-    fen = []
-    for i in xrange(1, 9):
-        fen.append(s['row{}'.format(i)])
-    fen = '/'.join(fen)
-    #
-    foo = '9' # <- fen format known not to contain this char
-    fen = fen.replace('-', foo)
-    fen_split = split(r'\D', fen)
-    for fs in fen_split:
-        l = len(fs)
-        if l > 0:
-            fen = sub('9+', str(l), fen, count=1)
-    return fen
+from bobby.servers.fics import PRELIMINARY_COMMANDS
+from bobby.servers.fics import is_style12, is_g1, s12_state, g1_state
 
 def fics_r(lock):
     global TN, CONFIGURED
@@ -77,19 +39,13 @@ def fics_r(lock):
                     output = TN.read_until('fics% ').strip()
                     if len(output):
                         lines = output.split('\n\r')
+                        # print lines
                         lines = lines[:-1] # prompt is always last, so omit it
                         if len(lines):
-                            if is_style12(lines[0]):
-                                print lines[0]
-                                s12 = parse_style12(lines[0])
-                                orientation = 'white'
-                                if s12['flip_field'] == 1: orientation = 'black'
-                                sio.emit('fen', {'data' :
-                                                 fen_from_style12(s12),
-                                                 'orientation' : 'white' or orientation
-                                                 } )
-                            else:
-                                [EMIT('{}\n'.format(line)) for line in lines]
+                            for line in lines:
+                                if is_style12(line): sio.emit('state', { 'data' : s12_state(line) } )
+                                elif is_g1(line):    sio.emit('state', { 'data' : g1_state(line) } )
+                                else:                EMIT('{}\n'.format(line))
             finally:
                 lock.release()
     except:
@@ -98,8 +54,7 @@ def fics_r(lock):
 
 def fics_w(lock):
         global TN, CONFIGURED
-        while not CONFIGURED:
-            sleep(1)
+        while not CONFIGURED: sleep(1)
         while 1:
             # If we have any data, send it:
             try:

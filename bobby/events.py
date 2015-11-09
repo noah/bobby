@@ -23,6 +23,10 @@ def handle_connected():
         writer = Thread(target=fics_w, args=(sock_lock,))
         writer.start()
         slog('started reader')
+        #print 'joining'
+        #writer.join()
+        #reader.join()
+        #print 'done'
 
 @sio.on('command')
 def handle_command(command):
