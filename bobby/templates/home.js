@@ -87,7 +87,7 @@ $(function() {
         });
         enable_send();
     });
-    socket.on('state', function(m) { // update html state
+    socket.on('board-state', function(m) { // update html state
         console.log(m.data);
         $.each(m.data, function(k, v) {
             if( k in override ) {

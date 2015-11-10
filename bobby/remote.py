@@ -7,14 +7,15 @@ from bobby import app, sio, curry_emit
 from config import FICS_HOST, FICS_PORT
 from logger import clog # , slog, log
 
+from bobby.servers.fics import PRELIMINARY_COMMANDS
+from bobby.servers.fics import is_style12, is_g1, s12_state, g1_state,\
+                                is_game_state, game_state
+
 #
 EMIT                    = curry_emit(sio.emit)
 TN                      = None
 CONFIGURED              = False
 TIMEOUT                 = 3
-
-from bobby.servers.fics import PRELIMINARY_COMMANDS
-from bobby.servers.fics import is_style12, is_g1, s12_state, g1_state
 
 def fics_r(lock):
     global TN, CONFIGURED
@@ -43,14 +44,20 @@ def fics_r(lock):
                         lines = lines[:-1] # prompt is always last, so omit it
                         if len(lines):
                             for line in lines:
-                                if is_style12(line): sio.emit('state', { 'data' : s12_state(line) } )
-                                elif is_g1(line):    sio.emit('state', { 'data' : g1_state(line) } )
-                                else:                EMIT('{}\n'.format(line))
+                                if is_style12(line):
+                                    sio.emit('board-state', { 'data' : s12_state(line) } )
+                                elif is_g1(line):
+                                    sio.emit('board-state', { 'data' : g1_state(line) } )
+                                elif is_game_state(line):
+                                    sio.emit('game-state', { 'data' : game_state(line) } )
+                                else:
+                                    EMIT('{}\n'.format(line))
             finally:
                 lock.release()
     except:
         EMIT(format_exc())
         TN.close()
+    print 'end of r'
 
 def fics_w(lock):
         global TN, CONFIGURED
@@ -62,7 +69,9 @@ def fics_w(lock):
                     command = app.command_queue.get()
                     clog("got cmd: {}".format(command))
                     EMIT(TN.write("{}\n".format(command)))
+                    if(command.lower() == 'quit'): break
             except Empty:
                 pass
             finally:
                 lock.release()
+        print 'end of w'

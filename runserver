@@ -11,8 +11,8 @@ from bobby import app, sio
 if __name__ == '__main__':
     try:
         sio.run(app)
+        app.command_queue.join()
     except KeyboardInterrupt:
-        app.command_queue.put('exit')
-        sleep(1)
+        print 'bobby out'
+        pass
     # connection.join()
-    app.command_queue.join()
