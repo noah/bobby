@@ -1,18 +1,9 @@
 #!/usr/bin/env python2
 
-from time import sleep
-
 from gevent import monkey; monkey.patch_all()
 
 from bobby import app, sio
-# from bobby.routes import connection
 
 
 if __name__ == '__main__':
-    try:
-        sio.run(app)
-    except KeyboardInterrupt:
-        app.command_queue.put('exit')
-        sleep(1)
-    # connection.join()
-    app.command_queue.join()
+    sio.run(app)

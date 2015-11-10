@@ -19,8 +19,10 @@ def handle_connected():
     if sock_lock is None:
         sock_lock = Lock()
         reader = Thread(target=fics_r, args=(sock_lock,))
+        reader.daemon = True
         reader.start()
         writer = Thread(target=fics_w, args=(sock_lock,))
+        writer.daemon = True
         writer.start()
         slog('started reader')
         #print 'joining'

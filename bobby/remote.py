@@ -50,6 +50,7 @@ def fics_r(lock):
                 lock.release()
     except:
         EMIT(format_exc())
+        sio.emit('disconnect')
         TN.close()
 
 def fics_w(lock):
