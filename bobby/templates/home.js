@@ -11,40 +11,44 @@ $(function() {
         if(remain_w < 0) {
             clearInterval(remain_w); clearInterval(remain_b); return;
         }
-        remain_w--;
+        remain_w-=4;
         $('#white_time_remain').html(remain_w/1000);
     };
     var timer_b = function() {
         if(remain_b < 0) { 
             clearInterval(remain_w); clearInterval(remain_b); return;
         }
-        remain_b--;
+        remain_b-=4;
         $('#black_time_remain').html(remain_b/1000);
     };
 
 
     var override = {
-        'orientation' : function(o) {
-            board.orientation(o);
+        'orientation' : function(data) {
+            board.orientation(data.orientation);
         },
-        'fen' : function(fen) {
-            board.position(fen)
+        'fen' : function(data) {
+            board.position(data.fen)
         },
-        'game_number' : function(n) {
-            $('#game_number').html("Game # " + n);
+        'game_number' : function(data) {
+            $('#game_number').html("Game # " + data.game_number);
         },
-        'initial_time_mins': function(mins) {
-            $('#initial_time_mins').html(mins + '/');
+        'initial_time_mins': function(data) {
+            $('#initial_time_mins').html(data.initial_time_mins+ '/');
         },
-        'white_time_remain': function(t) {
+        'white_time_remain': function(data) {
             clearInterval(counter_w);
-            remain_w = t;
-            counter_w = setInterval(timer_w, 10);
+            if(data.turn_color == "W") {
+                remain_w = data.white_time_remain;
+                counter_w = setInterval(timer_w, 4);
+            }
         },
-        'black_time_remain': function(t) {
+        'black_time_remain': function(data) {
             clearInterval(counter_b);
-            remain_b = t;
-            counter_b = setInterval(timer_b, 10);
+            if(data.turn_color == "B") {
+                remain_b = data.black_time_remain;
+                counter_b = setInterval(timer_b, 4);
+            }
         }
     };
 
@@ -88,7 +92,7 @@ $(function() {
         $.each(m.data, function(k, v) {
             if( k in override ) {
                 // execute custom update logic
-                override[k](v);
+                override[k](m.data);
             }
             else { // default logic: update #id (if it exists)
                 var target_id = "#" + k;
