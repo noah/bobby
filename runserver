@@ -6,4 +6,9 @@ from bobby import app, sio
 
 
 if __name__ == '__main__':
-    sio.run(app)
+    try:
+        sio.run(app)
+        # app.command_queue.join()
+    except KeyboardInterrupt:
+        print 'quitting'
+        pass

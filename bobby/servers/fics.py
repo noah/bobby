@@ -33,42 +33,18 @@ def is_style12(s):
 def is_g1(s):
     return s[:4] == '<g1>'
 
-def parse_style12(s):
-    # http://www.freechess.org/Help/HelpFiles/style12.html
-    keys = "s12 row1 row2 row3 row4 row5 row6 row7 row8 turn_color\
-        double_push_file white_castle_short white_castle_long\
-        black_castle_short black_castle_long moves_since_irreversible\
-        game_number white_name black_name my_relation initial_time_mins\
-        increment_time_secs white_strength black_strength white_time_remain\
-        black_time_remain next_move_number coordinate_notation\
-        previous_move_time pretty_notation_previous flip_field"
-    return dict(zip(keys.split(), s.split(' ')))
-
-def parse_g1(s):
-    # http://www.freechess.org/Help/HelpFiles/iv_gameinfo.html
-    keys = "g1 game_number private type rated wb_registered\
-        wb_initial_time wb_initial_increment partners_game_number\
-        wb_rating wb_timeseal"
-    g1_values = s.split(' ')
-    for i in range(2, len(g1_values)):
-        g1_values[i] = g1_values[i].split('=')[1]
-
-    g1 = dict(zip(keys.split(), g1_values))
-
-    # separate out g1 white/black tuples
-    g1_with_combined = {}
-    for k,v in g1.iteritems():
-        if k[:2] == 'wb':
-            w,b = v.split(',')
-            _, key = k.split('wb_')
-            g1_with_combined['white_{}'.format(key)] = w
-            g1_with_combined['black_{}'.format(key)] = b
-        else:
-            g1_with_combined[k] = v
-
-    return g1_with_combined
-
 def s12_state(s12_line):
+    def parse_style12(s):
+        # http://www.freechess.org/Help/HelpFiles/style12.html
+        keys = "s12 row1 row2 row3 row4 row5 row6 row7 row8 turn_color\
+            double_push_file white_castle_short white_castle_long\
+            black_castle_short black_castle_long moves_since_irreversible\
+            game_number white_name black_name my_relation initial_time_mins\
+            increment_time_secs white_strength black_strength white_time_remain\
+            black_time_remain next_move_number coordinate_notation\
+            previous_move_time pretty_notation_previous flip_field"
+        return dict(zip(keys.split(), s.split(' ')))
+
     # the cleaned-up board data object for the client to digest
     # defaults
     s12 = parse_style12(s12_line)
@@ -82,9 +58,36 @@ def s12_state(s12_line):
     return s12
 
 def g1_state(g1_line):
+    def parse_g1(s):
+        # http://www.freechess.org/Help/HelpFiles/iv_gameinfo.html
+        keys = "g1 game_number private type rated wb_registered\
+            wb_initial_time wb_initial_increment partners_game_number\
+            wb_rating wb_timeseal"
+        g1_values = s.split(' ')
+        for i in range(2, len(g1_values)):
+            g1_values[i] = g1_values[i].split('=')[1]
+        g1 = dict(zip(keys.split(), g1_values))
+        # separate out g1 white/black tuples
+        g1_with_combined = {}
+        for k,v in g1.iteritems():
+            if k[:2] == 'wb':
+                w,b = v.split(',')
+                _, key = k.split('wb_')
+                g1_with_combined['white_{}'.format(key)] = w
+                g1_with_combined['black_{}'.format(key)] = b
+            else:
+                g1_with_combined[k] = v
+        return g1_with_combined
+
     g1 = parse_g1(g1_line)
     if int(g1['rated']) == 1:
         g1['rated'] = 'rated'
     else:
         g1['unrated'] = 'unrated'
     return g1
+
+def is_game_state(line):
+    return line[:5] == '{Game'
+
+def game_state(line):
+    return line
