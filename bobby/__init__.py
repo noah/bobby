@@ -11,9 +11,8 @@ app.command_queue           = Queue()
 #
 sio.init_app(app)
 
-def curry_emit(f):
-    return lambda x: x is not None and f('message', {'data': x.replace('\r','')})
+curry_emit = lambda emitter: lambda key: lambda data: \
+    data is not None and emitter(key, {'data': data})
 
-#
 import events
 from bobby.routes import mod; app.register_blueprint(mod)

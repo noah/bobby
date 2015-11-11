@@ -8,7 +8,7 @@ from bobby import app, sio
 if __name__ == '__main__':
     try:
         sio.run(app)
-        # app.command_queue.join()
     except KeyboardInterrupt:
-        print 'quitting'
         pass
+    print 'joining command queue'
+    app.command_queue.join()

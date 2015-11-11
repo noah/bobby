@@ -1,78 +1,67 @@
 import telnetlib
+from re import match
 from time import sleep
-from traceback import format_exc
 from Queue import Empty
 
 from bobby import app, sio, curry_emit
 from config import FICS_HOST, FICS_PORT
 from logger import clog # , slog, log
 
-from bobby.servers.fics import PRELIMINARY_COMMANDS
-from bobby.servers.fics import is_style12, is_g1, s12_state, g1_state,\
-                                is_game_state, game_state
+from bobby.servers.fics import PRELIMINARY_COMMANDS, s12_state, g1_state, game_state
 
 #
-EMIT                    = curry_emit(sio.emit)
+EMIT                    = curry_emit(sio.emit)('message')
+EMIT_BOARD              = curry_emit(sio.emit)('board-state')
+EMIT_GAME               = curry_emit(sio.emit)('game-state')
 TN                      = None
 CONFIGURED              = False
 TIMEOUT                 = 3
 
 def fics_r(lock):
+    def process_line(line):
+        # n.b.: in the following, return <blah> will only emit signal data
+        # (not echo).  omitting return will both emit signal and echo.
+        if match(r'<12>', line):
+            return EMIT_BOARD(s12_state(line))
+        elif match(r'<g1>', line):
+            return EMIT_BOARD(g1_state(line))
+        elif match(r'{Game', line):
+            EMIT_GAME(game_state(line))
+        EMIT('{}\n'.format(line))
+
     global TN, CONFIGURED
-
-    assert(TN is None)
-
     EMIT('Opening telnet connection to {}:{}\n'.format(FICS_HOST, FICS_PORT))
     try:
         # login
         TN = telnetlib.Telnet(FICS_HOST, FICS_PORT)
-        EMIT(TN.read_until('login:', TIMEOUT))
+        EMIT(TN.read_until('login:', TIMEOUT).replace('\r',''))
         TN.write('guest\n')
-        match_index, match, text = TN.expect(['Press return to enter the server as.*$'], TIMEOUT)
+        match_index, _, text = TN.expect(['Press return to enter the server as.*$'], TIMEOUT)
         assert (match_index == 0)
         EMIT(text); TN.write('\n\n'); sio.emit('ficsup', {'data': True})
         [app.command_queue.put(cmd) for cmd in PRELIMINARY_COMMANDS]
         CONFIGURED = True; print 'reader configured.'
-
-        while 1:
+        while TN is not None:
             try:
                 if lock.acquire(blocking=False):
                     output = TN.read_until('fics% ').strip()
                     if len(output):
-                        lines = output.split('\n\r')
-                        # print lines
-                        lines = lines[:-1] # prompt is always last, so omit it
-                        if len(lines):
-                            for line in lines:
-                                if is_style12(line):
-                                    sio.emit('board-state', { 'data' : s12_state(line) } )
-                                elif is_g1(line):
-                                    sio.emit('board-state', { 'data' : g1_state(line) } )
-                                elif is_game_state(line):
-                                    sio.emit('game-state', { 'data' : game_state(line) } )
-                                else:
-                                    EMIT('{}\n'.format(line))
-            finally:
-                lock.release()
-    except:
-        EMIT(format_exc())
-        sio.emit('disconnect')
-        TN.close()
-    print 'end of r'
+                        # prompt is always last, so omit it
+                        [process_line(line) for line in output.split('\n\r')[:-1]]
+            finally: lock.release()
+    except EOFError, e: EMIT(str(e))
+    finally: TN.close()
 
 def fics_w(lock):
-        global TN, CONFIGURED
-        while not CONFIGURED: sleep(1)
-        while 1:
-            # If we have any data, send it:
-            try:
-                if lock.acquire(0):
-                    command = app.command_queue.get()
-                    clog("got cmd: {}".format(command))
-                    EMIT(TN.write("{}\n".format(command)))
-                    if(command.lower() == 'quit'): break
-            except Empty:
-                pass
-            finally:
-                lock.release()
-        print 'end of w'
+    global TN, CONFIGURED
+    while not CONFIGURED: sleep(1)
+    while TN is not None:
+        try: # If we have any data, send it
+            if lock.acquire(0):
+                command = app.command_queue.get()
+                clog("got cmd: {}".format(command))
+                EMIT(TN.write("{}\n".format(command)))
+                if command.lower() == 'quit':
+                    break
+        except Empty: pass
+        finally: lock.release()

@@ -1,4 +1,4 @@
-from re import sub, split
+from re import sub, split, search
 
 PRELIMINARY_COMMANDS    = """\
 set seek 0
@@ -27,12 +27,6 @@ def fen_from_style12(s):
             fen = sub('9+', str(l), fen, count=1)
     return fen
 
-def is_style12(s):
-    return s[:4] == '<12>'
-
-def is_g1(s):
-    return s[:4] == '<g1>'
-
 def s12_state(s12_line):
     def parse_style12(s):
         # http://www.freechess.org/Help/HelpFiles/style12.html
@@ -53,8 +47,6 @@ def s12_state(s12_line):
         'fen'           : fen_from_style12(s12),
     })
     if s12['flip_field'] == 1: s12['orientation'] = 'black'
-
-    #
     return s12
 
 def g1_state(g1_line):
@@ -80,14 +72,25 @@ def g1_state(g1_line):
         return g1_with_combined
 
     g1 = parse_g1(g1_line)
-    if int(g1['rated']) == 1:
-        g1['rated'] = 'rated'
-    else:
-        g1['unrated'] = 'unrated'
+    g1['rated'] = 'rated' if int(g1['rated']) == 1 else 'unrated'
     return g1
 
-def is_game_state(line):
-    return line[:5] == '{Game'
-
 def game_state(line):
-    return line
+    print line
+    for regex, state in\
+    {   # game results
+        r'forfeits on time'     : 'forfeit',
+        r'drawn by repetition'  : 'draw',
+        r'Creating'             : 'start',
+        r'resigns'              : 'resign',
+        r'aborted by mutual'    : 'abort',
+        r'Game aborted'         : 'abort',
+        r'drawn by mutual'      : 'draw',
+        r'drawn by stalemate'   : 'draw',
+        r'checkmated'           : 'checkmate',
+    }.iteritems():
+        if search(regex, line):
+            print 'returning state/line', state, line
+            return {state : line}
+    print 'returning unknown'
+    return {'unknown': line}
