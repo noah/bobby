@@ -97,6 +97,8 @@ $(function() {
     });
     socket.on('message', function(m) { // message from socket
         $('div#fics pre').append(m.data);
+        console.log($('div#fics pre').prop('scrollHeight'));
+        $('div#fics').animate({scrollTop: $('div#fics').prop('scrollHeight')}, 500);
     });
     socket.on('exception', function(m) { // exception from socket
         alert('exception, disconnecting: ' + m.data);

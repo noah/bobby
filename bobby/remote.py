@@ -2,6 +2,8 @@ import telnetlib
 from re import match
 from time import sleep
 from Queue import Empty
+from traceback import format_exc
+from collections import defaultdict
 
 from bobby import app, sio, curry_emit
 from config import FICS_HOST, FICS_PORT
@@ -19,15 +21,10 @@ TIMEOUT                 = 3
 
 def fics_r(lock):
     def process_line(line):
-        # n.b.: in the following, return <blah> will only emit signal data
-        # (not echo).  omitting return will both emit signal and echo.
-        if match(r'<12>', line):
-            return EMIT_BOARD(s12_state(line))
-        elif match(r'<g1>', line):
-            return EMIT_BOARD(g1_state(line))
-        elif match(r'{Game', line):
-            EMIT_GAME(game_state(line))
-        EMIT('{}\n'.format(line))
+        if match(r'<12>',    line): return EMIT_BOARD, s12_state(line)
+        elif match(r'<g1>',  line): return EMIT_BOARD, g1_state(line)
+        elif match(r'{Game', line): return EMIT_GAME, game_state(line)
+        else:                       return EMIT, line
 
     global TN, CONFIGURED
     EMIT('Opening telnet connection to {}:{}\n'.format(FICS_HOST, FICS_PORT))
@@ -46,11 +43,26 @@ def fics_r(lock):
                 if lock.acquire(blocking=False):
                     output = TN.read_until('fics% ').strip()
                     if len(output):
-                        # prompt is always last, so omit it
-                        [process_line(line) for line in output.split('\n\r')[:-1]]
+                        # note: emit()ting multiple join()ed lines (messages) to a
+                        # single socket handler is ***much*** more performant
+                        # than emit()ting once per message (line)!
+                        messages = defaultdict(list)
+                        for line in output.split('\n\r')[:-1]: # -1: omit prompt line
+                            femit, message = process_line(line)
+                            messages[femit].append(message)
+                        for femit, messages in messages.iteritems():
+                            # string type messages
+                            if femit in [EMIT]: femit('\n'.join(messages) + '\n')
+                            # higher-order type
+                            else: [femit(m) for m in messages]
             finally: lock.release()
-    except EOFError, e: EMIT(str(e))
-    finally: TN.close()
+    except EOFError, e:
+        EMIT(str(e))
+    except Exception, e:
+        EMIT(format_exc())
+    finally:
+        if TN is not None:
+            TN.close()
 
 def fics_w(lock):
     global TN, CONFIGURED
